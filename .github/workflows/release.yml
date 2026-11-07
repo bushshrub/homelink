@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin, asset: homelink-macos-arm64.zip }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, asset: homelink-macos-x86_64.zip }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: homelink-windows-x86_64.zip }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, asset: homelink-linux-x86_64.tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config libdbus-1-dev libfontconfig1-dev libxkbcommon-dev \
+            libwayland-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - name: NASM (aws-lc on Windows)
+        if: runner.os == 'Windows'
+        run: choco install nasm -y --no-progress
+      - run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (macOS app bundle)
+        if: runner.os == 'macOS'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          app=dist/HomeLink.app
+          mkdir -p "$app/Contents/MacOS"
+          cp target/${{ matrix.target }}/release/homelink "$app/Contents/MacOS/homelink"
+          version="${TAG#v}"
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>HomeLink</string>
+            <key>CFBundleDisplayName</key><string>HomeLink</string>
+            <key>CFBundleIdentifier</key><string>org.derpz.homelink</string>
+            <key>CFBundleExecutable</key><string>homelink</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>$version</string>
+            <key>CFBundleVersion</key><string>$version</string>
+            <key>LSUIElement</key><false/>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          ditto -c -k --keepParent "$app" "${{ matrix.asset }}"
+          zip -j "${{ matrix.asset }}" LICENSE THIRD_PARTY_NOTICES.md
+
+      - name: Package (Windows zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/homelink.exe dist/HomeLink.exe
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md dist/
+          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.asset }}
+
+      - name: Package (Linux tar.gz)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir dist
+          cp target/${{ matrix.target }}/release/homelink LICENSE THIRD_PARTY_NOTICES.md dist/
+          tar -C dist -czf ${{ matrix.asset }} .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true

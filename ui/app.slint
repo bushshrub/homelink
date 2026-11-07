@@ -1,0 +1,71 @@
+import { Button, LineEdit, Switch, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export enum Phase { disconnected, connecting, connected }
+
+export component MainWindow inherits Window {
+    title: "HomeLink";
+    preferred-width: 420px;
+    preferred-height: 300px;
+    min-width: 380px;
+
+    in property <Phase> phase;
+    in property <string> status-text;
+    in property <string> error-text;
+    in-out property <string> token;
+    in-out property <string> gateway;
+    in-out property <bool> start-at-login;
+    callback connect();
+    callback disconnect();
+    callback login-toggled(bool);
+
+    VerticalBox {
+        spacing: 10px;
+        Text {
+            text: "Send traffic through this computer";
+            font-size: 16px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+        Text { text: "Connection token"; }
+        LineEdit {
+            input-type: InputType.password;
+            placeholder-text: "paste your token";
+            text <=> root.token;
+            enabled: root.phase == Phase.disconnected;
+        }
+        Text { text: "Gateway"; }
+        LineEdit {
+            text <=> root.gateway;
+            enabled: root.phase == Phase.disconnected;
+        }
+        HorizontalBox {
+            padding: 0px;
+            Rectangle {
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                background: root.phase == Phase.connected ? #2e9e4f
+                    : root.phase == Phase.connecting ? #d9a21b : #8a8a8a;
+            }
+            Text { text: root.status-text; vertical-alignment: center; horizontal-stretch: 1; }
+            Button {
+                text: root.phase == Phase.disconnected ? "Connect" : "Disconnect";
+                primary: root.phase == Phase.disconnected;
+                clicked => {
+                    if (root.phase == Phase.disconnected) { root.connect(); } else { root.disconnect(); }
+                }
+            }
+        }
+        Text {
+            text: root.error-text;
+            color: #c0392b;
+            wrap: word-wrap;
+            visible: root.error-text != "";
+        }
+        Switch {
+            text: "Start at login";
+            checked <=> root.start-at-login;
+            toggled => { root.login-toggled(self.checked); }
+        }
+    }
+}

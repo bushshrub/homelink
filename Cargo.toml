@@ -1,0 +1,30 @@
+[package]
+name = "homelink"
+version = "0.1.0"
+edition = "2024"
+description = "Sends a service's web traffic out through this computer's home internet connection"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+hyper = "1"
+auto-launch = "0.6"
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+slint = { version = "1.18", default-features = false, features = ["std", "backend-winit", "renderer-software", "compat-1-2"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"] }
+url = "2"
+# Not on crates.io: the same release the gateway runs.
+wstunnel = { git = "https://github.com/erebe/wstunnel", tag = "v11.1.0", default-features = false, features = ["aws-lc-rs"] }
+
+[build-dependencies]
+slint-build = "1.18"
+
+[profile.release]
+lto = "thin"
+opt-level = "s"
+strip = true
+panic = "abort"
