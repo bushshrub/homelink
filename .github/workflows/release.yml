@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, target: aarch64-apple-darwin, asset: homelink-macos-arm64.zip }
+          - { os: macos-15, target: aarch64-apple-darwin, asset: homelink-macos-arm64.zip }
           - { os: macos-15-intel, target: x86_64-apple-darwin, asset: homelink-macos-x86_64.zip }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: homelink-windows-x86_64.zip }
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, asset: homelink-linux-x86_64.tar.gz }
@@ -78,7 +78,28 @@ jobs:
         run: |
           mkdir dist
           cp target/${{ matrix.target }}/release/homelink LICENSE THIRD_PARTY_NOTICES.md dist/
-          tar -C dist -czf ${{ matrix.asset }} .
+          tar -C dist -czf ${{ matrix.asset }} homelink LICENSE THIRD_PARTY_NOTICES.md
+
+      # The app only installs an update whose archive carries this signature (update-key.pub is the public half).
+      # The signature is bound to the archive's file name, so it is signed in place under its upload name.
+      - name: Sign the archive
+        shell: bash
+        env:
+          ZIPSIGN_PRIVATE_KEY: ${{ secrets.ZIPSIGN_PRIVATE_KEY }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          if [ -z "$ZIPSIGN_PRIVATE_KEY" ]; then
+            echo "::error::The secret ZIPSIGN_PRIVATE_KEY is not set; refusing to publish an unsigned release."
+            exit 1
+          fi
+          cargo install zipsign --version 0.2.2 --locked
+          key="$RUNNER_TEMP/zipsign.key"
+          printf '%s' "$ZIPSIGN_PRIVATE_KEY" | base64 --decode > "$key"
+          case "$ASSET" in
+            *.zip) zipsign sign zip "$ASSET" "$key" ;;
+            *.tar.gz) zipsign sign tar "$ASSET" "$key" ;;
+          esac
+          rm -f "$key"
 
       - uses: actions/upload-artifact@v4
         with:

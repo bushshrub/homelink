@@ -5,6 +5,7 @@
 
 mod settings;
 mod tunnel;
+mod update;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -28,6 +29,13 @@ fn main() -> Result<(), slint::PlatformError> {
             if ui.get_phase() != Phase::Disconnected {
                 show(&ui, &status);
             }
+        });
+    });
+
+    let weak = ui.as_weak();
+    update::spawn(move |version| {
+        let _ = weak.upgrade_in_event_loop(move |ui| {
+            ui.set_update_text(format!("Updated to {version}: restart to finish").into());
         });
     });
 

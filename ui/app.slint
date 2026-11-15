@@ -11,6 +11,7 @@ export component MainWindow inherits Window {
     in property <Phase> phase;
     in property <string> status-text;
     in property <string> error-text;
+    in property <string> update-text;
     in-out property <string> token;
     in-out property <string> gateway;
     in-out property <bool> start-at-login;
@@ -61,6 +62,11 @@ export component MainWindow inherits Window {
             color: #c0392b;
             wrap: word-wrap;
             visible: root.error-text != "";
+        }
+        Text {
+            text: root.update-text;
+            wrap: word-wrap;
+            visible: root.update-text != "";
         }
         Switch {
             text: "Start at login";
